@@ -1,0 +1,6 @@
+build/
+build-*/
+pebblekv_benchmark_data/
+.vscode/
+.idea/
+*.swp
