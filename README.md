@@ -161,22 +161,6 @@ PebbleKV/
 - **No checksums.** Corruption is detected only through header and length checks. The file format uses native byte order, so files are not portable between big- and little-endian machines.
 - **Single process only.** Nothing prevents two processes from opening the same directory at once.
 
-## Interview questions
-
-**1. Why write to the WAL before the memtable?**
-The memtable lives in memory and is lost if the process crashes. Appending to the log first means every write that `put` acknowledged can be rebuilt by replaying the log on reopen. In PebbleKV that guarantee covers process crashes only, because there is no `fsync`.
-
-**2. Why search SSTables from newest to oldest?**
-SSTables are immutable, so an update to a key lands in a newer table instead of changing the old one. The first table that contains the key holds its latest value, and the search can stop there.
-
-**3. What do Bloom filters buy you, and what can go wrong?**
-A Bloom filter answers "definitely not here" without any disk I/O, so most tables are skipped. This matters most for missing keys, which would otherwise require checking every table. The filter never gives a false negative. It can give a false positive (about 1.7% at 10 bits per key with 3 probes), which only costs one unnecessary block read and never produces a wrong answer.
-
-**4. How does compaction stay safe if it crashes midway?**
-The merged table is written to a `.tmp` file and renamed only when complete, and old tables are deleted only after that. A crash before the rename leaves a `.tmp` file that is removed on the next open. A crash after the rename leaves both the old tables and the merged one, and the merged table has the highest id, so it correctly wins.
-
-**5. How is concurrency handled, and what would you improve?**
-One `std::shared_mutex` protects the memtable and the table list. Readers share it, and writers, flushes, and compaction take it exclusively, which is simple and easy to reason about (ThreadSanitizer finds no races in the tests). The main cost is that a flush or compaction blocks all readers. Real engines instead keep an immutable memtable plus a reference-counted snapshot of the table list, so reads continue while a background thread flushes and compacts.
 
 ## License
 
